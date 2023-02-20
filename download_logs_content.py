@@ -84,7 +84,7 @@ class DownloadLogContent(object):
             response = requests.get(
                 url,
                 headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:47.0) Gecko/20100101 Firefox/47.0"
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"
                 },
             )
             binary_content = response.content

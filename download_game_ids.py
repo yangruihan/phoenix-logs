@@ -116,7 +116,11 @@ class DownloadGameId(object):
         if not os.path.exists(archive_path):
             print("Downloading... {}".format(archive_name))
 
-            response = requests.get(download_url, stream=True)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
+            }
+
+            response = requests.get(download_url, stream=True, headers=headers)
             total_length = response.headers.get("content-length")
 
             with open(archive_path, "wb") as f:
@@ -127,7 +131,7 @@ class DownloadGameId(object):
                     downloaded = 0
                     total_length = int(total_length)
                     total_length_in_kb = int(total_length / 1024)
-                    for data in response.iter_content(chunk_size=40960):
+                    for data in response.iter_content(chunk_size=409600):
                         downloaded += len(data)
                         f.write(data)
 
