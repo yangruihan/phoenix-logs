@@ -16,18 +16,29 @@ db_folder = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'db')
 logging.basicConfig(level=logging.DEBUG)
 
 already_handle_set = set()
-convert_path = './db/convert.bin'
-if os.path.exists(convert_path):
-    with open(convert_path, 'rb') as f:
+error_set = set()
+
+convert_set_path = './db/convert.bin'
+error_set_path = './db/error.bin'
+
+if os.path.exists(convert_set_path):
+    with open(convert_set_path, 'rb') as f:
         already_handle_set = pickle.load(f)
+
+if os.path.exists(error_set_path):
+    with open(error_set_path, 'rb') as f:
+        error_set = pickle.load(f)
+
 handle_set_lock = threading.Lock()
+error_set_lock = threading.Lock()
 
 
 def handle_log(id: bytes, content: bytes, out_path: str):
     try:
-        print(f'start handle {id}...')
+        logging.info(f'start handle {id}...')
 
         content = bz2.decompress(content)
+
         # type for four player game
         if not b'type=\"169\"' in content:
             return
@@ -58,17 +69,27 @@ def handle_log(id: bytes, content: bytes, out_path: str):
                 else:
                     new_content.append(line)
 
+            # content error
+            if len(content) < 2 or (not content[-1].startswith(b'{"type":"end_game"')):
+                logging.error(
+                    f'handle {id} faild, content error, handled cnt {len(already_handle_set)}, error cnt {len(error_set)}')
+                with error_set_lock:
+                    error_set.add(id)
+                    with open(error_set_path, 'wb') as f:
+                        pickle.dump(error_set, f)
+                return
+
             content = b''.join(new_content)
             content = gzip.compress(content)
             with open(f'{mjson_path.replace(".mjson", ".json")}.gz', 'wb') as fw:
                 fw.write(content)
 
         with handle_set_lock:
-            print(
-                f'handle {id} finished, out {out_path}, handled cnt {len(already_handle_set)}')
+            logging.info(
+                f'handle {id} finished, out {out_path}, total handled cnt {len(already_handle_set)}, error cnt {len(error_set)}')
 
             already_handle_set.add(id)
-            with open(convert_path, 'wb') as f:
+            with open(convert_set_path, 'wb') as f:
                 pickle.dump(already_handle_set, f)
     except Exception as e:
         logging.error("handle %s raised an exception: %s",
@@ -104,7 +125,7 @@ def main():
             cursor.execute('SELECT COUNT(*) FROM logs WHERE is_processed = 1;')
             cnt = cursor.fetchone()[0]
 
-        print(f'start convert {cnt}')
+        logging.info(f'start convert {cnt}')
 
         cursor.execute(f'SELECT * FROM logs LIMIT {cnt}')
 
@@ -113,7 +134,7 @@ def main():
         for row in rows:
             logs.append((row[0], row[6]))
 
-    print(f'wait to process {len(logs)}...')
+    logging.info(f'wait to process {len(logs)}...')
     cnt = len(logs)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=64) as executor:
@@ -123,12 +144,16 @@ def main():
                 if id in already_handle_set:
                     continue
 
+            with error_set_lock:
+                if id in error_set:
+                    continue
+
             tasks.append(executor.submit(handle_log, id, content, './logs'))
 
         # Wait for all worker tasks to finish
         concurrent.futures.wait(tasks)
 
-    with open(convert_path, 'wb') as f:
+    with open(convert_set_path, 'wb') as f:
         pickle.dump(already_handle_set, f)
 
 
