@@ -28,7 +28,7 @@ def handle_log(id: bytes, content: bytes, out_path: str):
         print(f'start handle {id}...')
 
         content = bz2.decompress(content)
-        # 标准4麻类型
+        # type for four player game
         if not b'type=\"169\"' in content:
             return
 
