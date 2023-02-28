@@ -18,14 +18,14 @@ logging.basicConfig(level=logging.DEBUG)
 already_handle_set = set()
 error_set = set()
 
-convert_set_path = './db/convert.bin'
-error_set_path = './db/error.bin'
+convert_set_path = os.path.join(db_folder, 'convert.bin')
+error_set_path = os.path.join(db_folder, 'error.bin')
 
-if os.path.exists(convert_set_path):
+if os.path.exists(convert_set_path) and os.path.getsize(convert_set_path) > 0:
     with open(convert_set_path, 'rb') as f:
         already_handle_set = pickle.load(f)
 
-if os.path.exists(error_set_path):
+if os.path.exists(error_set_path) and os.path.getsize(error_set_path) > 0:
     with open(error_set_path, 'rb') as f:
         error_set = pickle.load(f)
 
@@ -112,6 +112,8 @@ def main():
         db_file = opts.db_path
     else:
         db_file = os.path.join(db_folder, f'{opts.year}.db')
+
+    logging.info(f'start convert {opts.year} logs, db file {db_file}...')
 
     connection = sqlite3.connect(db_file)
 
