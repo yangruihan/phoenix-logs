@@ -96,23 +96,32 @@ def handle_log(id: bytes, content: bytes, out_path: str):
                       id, str(e), exc_info=True)
 
 
-def main():
-    global db_folder
+def reset_error_log_status(opts, db_file):
+    global error_set
+    year = opts.year
+    year_logs = [id for id in error_set if id.startswith(str(year))]
 
-    parser = OptionParser()
-    parser.add_option('-y', '--year', type='string',
-                      default=str(datetime.now().year), help='Target year')
-    parser.add_option('-c', '--count', type='int', default=0)
-    parser.add_option('-p', '--db_path', type='string')
-    parser.add_option('-o', '--out_path', type='string')
+    logging.info(f'start reset {opts.year} logs, db file {db_file}...')
 
-    opts, _ = parser.parse_args()
+    connection = sqlite3.connect(db_file)
 
-    if opts.db_path:
-        db_file = opts.db_path
-    else:
-        db_file = os.path.join(db_folder, f'{opts.year}.db')
+    with connection:
+        cursor = connection.cursor()
 
+        for id in year_logs:
+            cursor.execute(
+                f'UPDATE logs SET is_processed = 0 WHERE log_id = "{id}"')
+            error_set.remove(id)
+            logging.info(f'reset {id} finish')
+
+    with open(error_set_path, 'wb') as f:
+        pickle.dump(error_set, f)
+
+    logging.info(
+        f'reset {len(year_logs)} logs finished, total error cnt {len(error_set)}')
+
+
+def convert_logs(opts, db_file):
     logging.info(f'start convert {opts.year} logs, db file {db_file}...')
 
     connection = sqlite3.connect(db_file)
@@ -157,6 +166,31 @@ def main():
 
     with open(convert_set_path, 'wb') as f:
         pickle.dump(already_handle_set, f)
+
+
+def main():
+    global db_folder
+
+    parser = OptionParser()
+    parser.add_option('-y', '--year', type='string',
+                      default=str(datetime.now().year), help='Target year')
+    parser.add_option('-c', '--count', type='int', default=0)
+    parser.add_option('-p', '--db_path', type='string')
+    parser.add_option('-o', '--out_path', type='string')
+    parser.add_option(
+        '-r', '--reset', help='Reset error status', default=False)
+
+    opts, _ = parser.parse_args()
+
+    if opts.db_path:
+        db_file = opts.db_path
+    else:
+        db_file = os.path.join(db_folder, f'{opts.year}.db')
+
+    if opts.reset:
+        reset_error_log_status(opts, db_file)
+    else:
+        convert_logs(opts, db_file)
 
 
 if __name__ == '__main__':
